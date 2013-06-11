@@ -1,0 +1,28 @@
+from scrapy.spider import BaseSpider
+from scrapy.selector import HtmlXPathSelector
+from numbeo.items import NumbeoItem
+#from numbeo import items.NumbeoItem
+
+class NumbeoSpider(BaseSpider):
+    name = "numbeo_basic"
+    allowed_domains = ["www.numbeo.com"]
+        #'http://www.numbeo.com',
+    start_urls = (
+        'http://www.numbeo.com/'
+        )
+
+    def parse(self, response):
+        hxs = HtmlXPathSelector(response)
+        items = []
+        titles = hxs.select("//*[@class='table_indexes']")
+        for t in titles:
+            item = NumbeoItem()
+            #item[city] = hxs.select('//h1').extract()
+            item['consumer_price_index_excl_rent'] = t.select('//tr[2]/td[2]/text()').extract()
+            item['rent_index'] = t.select('//tr[3]/td[2]/text()').extract()
+            item['groceries_index'] = t.select('//tr[4]/td[2]/text()').extract()
+            item['restaurants_index'] = t.select('//tr[5]/td[2]/text()').extract()
+            item['consumer_price_index_with_rent'] = t.select('//tr[6]/td[2]/text()').extract()
+            item['local_purchasinf_power'] = t.select('//tr[7]/td[2]/text()').extract()
+            items.append(item)
+        return(items)
