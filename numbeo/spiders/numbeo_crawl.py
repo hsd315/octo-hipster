@@ -38,6 +38,16 @@ class NumbeoSpider(CrawlSpider):
             yield Request(url, callback = self.parse_cpi)
 
 
+    def fill_country_and_city(self, itemclass,hxs,city_level_data):
+        item = itemclass
+        item['country'] = hxs.select(
+            "//*[@class='breadcrumb-outer']//td[1]//a[3]/text()").extract()[0].encode('ascii',errors='ignore')
+        if city_level_data:
+            item['city'] = hxs.select(
+                "//*[@class='breadcrumb-outer']//td[1]//a[4]/text()").extract()[0].encode('ascii',errors='ignore')
+        else:
+            item['city'] = 'country_level_data'
+
     def parse_helper(
         self, 
         hxs, 
@@ -53,30 +63,14 @@ class NumbeoSpider(CrawlSpider):
         cpi_detail_values = hxs.select(hxs_general_selector_string)
 	#If table does not exist, return a set of values (country followed by -1s for every field)
         if len(cpi_detail_values) == 0:
-            item = itemclass
-            item['country'] = hxs.select(
-                "//*[@class='breadcrumb-outer']//td[1]//a[3]/text()").extract()[0].encode('ascii',errors='ignore')
-            if city_level_data:
-                item['city'] = hxs.select(
-                    "//*[@class='breadcrumb-outer']//td[1]//a[4]/text()").extract()[0].encode('ascii',errors='ignore')
-            else:
-                item['city'] = 'country_level_data'
-            
+            item = fill_country_and_city(itemclass,hxs,city_level_data):
             for var_name in item.list_of_fields:
                 item[var_name] = -1
         for cpi_value in cpi_detail_values:
-            item = itemclass
-            item['country'] = hxs.select(
-                "//*[@class='breadcrumb-outer']//td[1]//a[3]/text()").extract()[0].encode('ascii',errors='ignore')
-            if city_level_data:
-                item['city'] = hxs.select(
-                    "//*[@class='breadcrumb-outer']//td[1]//a[4]/text()").extract()[0].encode('ascii',errors='ignore')
-            else:
-                item['city'] = 'country_level_data'
+            item = fill_country_and_city(itemclass,hxs,city_level_data)
             for var_name in item.list_of_fields:
                 #.encode() - converts to ascii and ignores any characters that 
                 #cannot be converted
-                #we use[:-1] at end to remove the 'currency'
                 item[var_name] = my_float(
                     numtype_regex.sub(
                     '', cpi_value.select(
@@ -243,9 +237,16 @@ class NumbeoSpider(CrawlSpider):
             values = hxs.select("//*[@id='city']/option/text()").extract()
             form_responce_url_list=[]
             for value in values:
-                #yield FormRequest.from_response(response,formdata={'city':value}, callback = self.parse_city_data_cpi_basic)
+                # we are not yielding FormRequest directly, because we need to append the 
+                #url with displayCurrency in order to get normalized output for all
+                #countries and cities. We simply use the URL from FormRequest and get back
+                #data from url with displayCurrency appended. 
+                #It would be possible to yield to FormRequest and then go to page and have
+                #another formrequest to choose currency, but that only means that we are
+                #sending GET request to a page without scraping any data from it
                 temp_url = (FormRequest.from_response(response,formdata={'city':value}).url)
                 url = temp_url+'&displayCurrency=USD'
-                yield Request(url, callback = self.parse_cpi)
-            
-
+                if '--- Select city---' in url:
+                    pass
+                else:
+                    yield Request(url, callback = self.parse_cpi)
